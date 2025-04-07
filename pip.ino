@@ -5,10 +5,10 @@
 #include <WiFi.h>
 #include <TFT_eSPI.h>
 #include <SPI.h>
-//#include "Fonts\FreeMonoBold24pt7b.h"
+#include "Fonts\monofonto_rg12pt7b.h"
 #include "Fonts\Open_Sans_Condensed_Light_18.h"
 #include <BlynkSimpleEsp32.h>
-#define FONT1 &FreeMonoBold12pt7b
+#define FONT1 &monofonto_rg12pt7b
 #define FONT2 &Open_Sans_Condensed_Light_18 
 
 TFT_eSPI tft = TFT_eSPI();
@@ -52,7 +52,8 @@ const int btnLeft  = 10;
 const int btnRight = 21;     
 const int btnCenter= 5;
 const int LEDPin = 3;
-
+int wifiX = 148;
+int wifiY = 76;
 void myTimer() 
 {
   Blynk.virtualWrite(V21, voltage);
@@ -125,82 +126,111 @@ void drawWiFiSignalStrength(int32_t x, int32_t y, int32_t radius) { //chatGPT-ge
 }
 
 void drawMain() {
-  img.fillSprite(TFT_BLACK);
-  if (WiFi.status() == WL_CONNECTED) {
-      drawWiFiSignalStrength(140, 77, 9);
-  }
-  
-  // Draw quadrant dividers
-  img.drawFastVLine(80, 0, 60, TFT_DARKGREY);
-  img.drawFastHLine(0, 30, 160, TFT_DARKGREY);
-  img.drawFastHLine(0, 60, 160, TFT_DARKGREY);
+    img.fillSprite(TFT_BLACK);
 
-  // Get measurements and format as Strings
-  voltage = INA1.getBusVoltage_V();
-  current = INA1.getCurrent_mA();
-  if (current < 0) {current = 0;}
-  
-  String voltageStr = String(voltage, 2);
-  String currentStr = String(current, 1);
-  String mahStr = String((int)ina1_mAh);
-  String mwhStr = String((int)ina1_mWh);
-  
-  // Format time with leading zeros
-  char timeStr[9];
-  int hours = accumulatedTestTime / 3600;
-  int minutes = (accumulatedTestTime % 3600) / 60;
-  int seconds = accumulatedTestTime % 60;
-  sprintf(timeStr, "%02d:%02d:%02d", hours, minutes, seconds);
-  
-    // Top left - Voltage (stays centered but moved left)
-    img.setFreeFont(FONT1);
-    img.setTextColor(COLOR_VOLTAGE);
-    img.setTextDatum(MC_DATUM);
-    img.drawString(voltageStr, 35, 15);  // Was 40
-    img.setFreeFont(FONT2);
-    img.setTextDatum(BR_DATUM);
-    img.drawString("V", 75, 28);
-  
-  // Top right - Current (right aligned)
-  img.setFreeFont(FONT1);
-  img.setTextColor(COLOR_CURRENT);
-  img.setTextDatum(MR_DATUM);
-  img.drawString(currentStr, 135, 15);
-  img.setFreeFont(FONT2);
-  img.setTextDatum(BR_DATUM);
-  img.drawString("mA", 158, 28);
-  
+    if (WiFi.status() == WL_CONNECTED) {
+            drawWiFiSignalStrength(wifiX, wifiY, 9);
+    }
     
-    // Bottom left - mAh (right aligned, moved left)
-    img.setFreeFont(FONT1);
-    img.setTextColor(COLOR_MAH);
-    img.setTextDatum(MR_DATUM);
-    img.drawString(mahStr, 42, 45);  // Was 65
-    img.setFreeFont(FONT2);
-    img.setTextDatum(BR_DATUM);
-    img.drawString("mAh", 75, 58);
+    // Draw quadrant dividers with shifted centerline (71 instead of 80)
+    img.drawFastVLine(71, 0, 60, TFT_DARKGREY);
+    img.drawFastHLine(0, 30, 160, TFT_DARKGREY);
+    img.drawFastHLine(0, 60, 160, TFT_DARKGREY);
+
+    // Get measurements and format as Strings
+    voltage = INA1.getBusVoltage_V();
+    current = INA1.getCurrent_mA();
+    if (current < 0) {current = 0;}
     
-    // Bottom right - mWh (right aligned, moved left)
+        // Format all numbers to fixed width with padding
+        char voltageStr[8], currentStr[8], mahStr[8], mwhStr[8];
+        
+        snprintf(voltageStr, sizeof(voltageStr), "%1.2f", voltage);
+        if (current < 10) {
+                snprintf(currentStr, sizeof(currentStr), "  %3.1f", current);
+        } else if (current < 100) {
+                snprintf(currentStr, sizeof(currentStr), " %4.1f", current);
+        } else {
+                snprintf(currentStr, sizeof(currentStr), "%5.1f", current);
+        }
+
+        if (ina1_mAh <= 0) {
+            snprintf(mahStr, sizeof(mahStr), "0.0");
+        } else if (ina1_mAh < 10) {
+            snprintf(mahStr, sizeof(mahStr), "%1.1f", ina1_mAh);
+        } else if (ina1_mAh < 100) {
+            snprintf(mahStr, sizeof(mahStr), "%02.0f", ina1_mAh);
+        } else {
+            snprintf(mahStr, sizeof(mahStr), "%3.0f", ina1_mAh);
+        }
+
+        // Format mWh with conditional decimal place and leading zeros
+        if (ina1_mWh <= 0) {
+            snprintf(mwhStr, sizeof(mwhStr), "00.0");  // Changed format to force 3 leading zeros
+        } else if (ina1_mWh < 10) {
+            snprintf(mwhStr, sizeof(mwhStr), "0%1.1f", ina1_mWh);  // Changed to force 3 leading zeros
+        } else if (ina1_mWh < 100) {
+            snprintf(mwhStr, sizeof(mwhStr), "%2.1f", ina1_mWh);  // Changed to force 3 leading zeros
+        } else if (ina1_mWh < 1000) {
+            snprintf(mwhStr, sizeof(mwhStr), "0%3.0f", ina1_mWh);
+        } else {
+            snprintf(mwhStr, sizeof(mwhStr), "%4.0f", ina1_mWh);
+        }
+    
+        // Format time with leading zeros
+        char timeStr[9];
+        int hours = accumulatedTestTime / 3600;
+        int minutes = (accumulatedTestTime % 3600) / 60;
+        int seconds = accumulatedTestTime % 60;
+        sprintf(timeStr, "%02d:%02d:%02d", hours, minutes, seconds);
+        
+        // Top left - Voltage (moved 9px left)
+        img.setFreeFont(FONT1);
+        img.setTextColor(COLOR_VOLTAGE);
+        img.setTextDatum(ML_DATUM);
+        img.drawString(voltageStr, 11, 15);  // Was 20
+        img.setFreeFont(FONT2);
+        img.setTextDatum(BR_DATUM);
+        img.drawString("V", 69, 30);  // Was 78
+
+        // Top right - Current
+        img.setFreeFont(FONT1);
+        img.setTextColor(COLOR_CURRENT);
+        img.setTextDatum(ML_DATUM);
+        img.drawString(currentStr, 80, 15);  // Was 80
+        img.setFreeFont(FONT2);
+        img.setTextDatum(BR_DATUM);
+        img.drawString("mA", 160, 30);
+        
+        // Bottom left - mAh (left aligned in cell)
+        img.setFreeFont(FONT1);
+        img.setTextColor(COLOR_MAH);
+        img.setTextDatum(ML_DATUM);  // Changed to ML_DATUM
+        img.drawString(mahStr, 2, 45);  // Align with voltage position
+        img.setFreeFont(FONT2);
+        img.setTextDatum(BR_DATUM);
+        img.drawString("mAh", 69, 60);
+        
+        // Bottom right - mWh (left aligned in cell)
+        img.setFreeFont(FONT1);
+        img.setTextColor(COLOR_MWH);
+        img.setTextDatum(ML_DATUM);  // Changed to ML_DATUM
+        img.drawString(mwhStr, 73, 45);  // Align with current position
+        img.setFreeFont(FONT2);
+        img.setTextDatum(BR_DATUM);
+        img.drawString("mWh", 160, 60);
+    
+    // Bottom row - Time (centered)
     img.setFreeFont(FONT1);
-    img.setTextColor(COLOR_MWH);
-    img.setTextDatum(MR_DATUM);
-    img.drawString(mwhStr, 120, 45);  // Was 135
-    img.setFreeFont(FONT2);
-    img.setTextDatum(BR_DATUM);
-    img.drawString("mWh", 158, 58);
-  
-  // Bottom row - Time (centered)
-  img.setFreeFont(FONT1);
-  img.setTextColor(COLOR_TIME);
-  img.setTextDatum(MC_DATUM);
-  img.drawString(timeStr, 80, 70);
+    img.setTextColor(COLOR_TIME);
+    img.setTextDatum(BC_DATUM);
+    img.drawString(timeStr, 80, 85);
 
-  img.setTextFont(1);  // Use built-in font for small text
-  img.setTextDatum(BL_DATUM);  // Bottom-Left alignment
-  img.setTextColor(TFT_WHITE);
-  //img.drawString(getRawButtonPressed(), 2, 79);
+    img.setTextFont(1);
+    img.setTextDatum(BL_DATUM);
+    img.setTextColor(TFT_WHITE);
 
-  img.pushSprite(0, 0);
+    img.pushSprite(0, 0);
 }
 
 void drawMenu() {
@@ -209,7 +239,7 @@ void drawMenu() {
   img.setTextFont(1);
   img.setTextSize(1);
   if (WiFi.status() == WL_CONNECTED) {
-    drawWiFiSignalStrength(140, 77, 9);
+    drawWiFiSignalStrength(wifiX, wifiY, 9);
   }
   
   const char* menuItems[] = {"Connect WiFi", "Brightness", "Main Screen"};
@@ -238,7 +268,7 @@ void drawMenu() {
 }
 
 void drawWiFiScreen() {
-    img.fillScreen(TFT_BLACK);
+    img.fillSprite(TFT_BLACK); 
     img.setTextColor(TFT_WHITE, TFT_BLACK);
     img.setTextDatum(TL_DATUM);
     img.setTextFont(1);
@@ -272,8 +302,7 @@ void drawWiFiScreen() {
       }
     }
     else {
-    //tft.fillScreen(TFT_BLACK);
-    img.fillScreen(TFT_BLACK);
+    img.fillSprite(TFT_BLACK); 
     img.drawString("Connected!", 10, 10, 2);
     img.drawString("IP: " + WiFi.localIP().toString(), 10, 30, 2);
     img.drawString("Press any key", 10, 50, 2);
@@ -289,6 +318,7 @@ void setup() {
 
   // Create sprite once
   img.createSprite(160, 80);
+
   
   pinMode(btnUp, INPUT_PULLUP);
   pinMode(btnDown, INPUT_PULLUP);
@@ -402,13 +432,13 @@ void loop() {
       }
       else if (currentState == WIFI_SCREEN) {
           if (button != "None") {
-              currentState = MENU_SCREEN;
+              currentState = MAIN_SCREEN;
           }
       }
   }
   
   // Update display based on state
-  every(100) {
+
       switch (currentState) {
           case MAIN_SCREEN:
               drawMain();
@@ -421,5 +451,5 @@ void loop() {
               drawWiFiScreen();
               break;
       }
-  }
+
 }
